@@ -1,4 +1,6 @@
-# Karoo Fused GPS
+# TrailforksFusedGPS
+
+Anzeigename auf dem Karoo: **TrailforksFusedGPS** (steht in der App-Liste direkt nach Trailforks). Paketname: `ch.dansoft.karoofusedgps`
 
 Kleine Android-App für den **Hammerhead Karoo 3**: Sie leitet die GPS-Positionen des Karoo an den
 Android-Standortdienst **„fused“** weiter, damit nachgeladene Apps wie **Trailforks** den Standort
@@ -19,7 +21,7 @@ denn ohne Karoo-App im Vordergrund fragt das Karoo-System GPS nur alle 30 Minute
 ausgeschaltetem Display pausiert diese Anfrage (Strom sparen; die Karoo-App fragt für eine laufende
 Aufzeichnung selbst an), beim Einschalten geht es sofort weiter. Den GPS-Provider
 ersetzt sie nicht: Die Karoo-App und Locus Map holen ihr GPS
-direkt und sind nicht betroffen. Die Weiterleitung startet nach dem Einschalten des Karoo automatisch.
+direkt und sind nicht betroffen. Die Weiterleitung startet nach dem Einschalten des Karoo automatisch (LOCKED_BOOT_COMPLETED und BOOT_COMPLETED, mit bis zu drei Versuchen). Jeder Schritt steht im Log: `adb logcat -s KarooFusedGPS`.
 
 ## Bauen
 
@@ -40,7 +42,7 @@ adb shell appops set ch.dansoft.karoofusedgps android:mock_location allow
 adb shell am start -n ch.dansoft.karoofusedgps/.MainActivity
 ```
 
-Der `appops`-Befehl entspricht „Entwickleroptionen → App für simulierte Standorte → Karoo Fused GPS“.
+Der `appops`-Befehl entspricht „Entwickleroptionen → App für simulierte Standorte → TrailforksFusedGPS“.
 
 In der App zeigt der Status, ob der Fused-Ersatz aktiv ist und wie viele Positionen weitergeleitet
 wurden. Positionen gibt es nur, wenn der Karoo GPS-Empfang hat.

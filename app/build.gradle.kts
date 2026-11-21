@@ -11,8 +11,8 @@ android {
         applicationId = "ch.dansoft.karoofusedgps"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
     }
 
     // Fester Schlüssel im Repository, damit sich jede neue Version über die alte

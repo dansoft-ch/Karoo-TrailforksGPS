@@ -38,7 +38,7 @@ import android.util.Log
 class ForwardService : Service() {
 
     companion object {
-        private const val TAG = "KarooFusedGPS"
+        const val TAG = "KarooFusedGPS"
         const val FUSED = "fused"
         private const val CHANNEL = "forward"
         private const val NOTIF_ID = 1
@@ -54,17 +54,30 @@ class ForwardService : Service() {
         @Volatile var lastFixTime = 0L
         @Volatile var lastError: String? = null
 
-        fun isEnabled(ctx: Context): Boolean =
-            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, true)
+        // Einstellungen im geräteverschlüsselten Speicher: schon beim LOCKED_BOOT_COMPLETED lesbar
+        private fun prefs(ctx: Context) =
+            ctx.createDeviceProtectedStorageContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+        fun isEnabled(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_ENABLED, true)
 
         fun setEnabled(ctx: Context, enabled: Boolean) {
-            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-                .putBoolean(KEY_ENABLED, enabled).apply()
+            prefs(ctx).edit().putBoolean(KEY_ENABLED, enabled).apply()
             if (enabled) start(ctx) else ctx.stopService(Intent(ctx, ForwardService::class.java))
         }
 
         fun start(ctx: Context) {
             ctx.startForegroundService(Intent(ctx, ForwardService::class.java))
+        }
+
+        /** Start mit Protokoll; Fehler landen im Log und in der Statusanzeige. */
+        fun startLogged(ctx: Context, reason: String) {
+            Log.i(TAG, "Start angefordert: $reason")
+            try {
+                start(ctx)
+            } catch (e: Exception) {
+                lastError = "Start ($reason): ${e.javaClass.simpleName}: ${e.message}"
+                Log.e(TAG, "Start fehlgeschlagen ($reason)", e)
+            }
         }
     }
 
@@ -106,8 +119,16 @@ class ForwardService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.i(TAG, "Dienst startet")
         lm = getSystemService(LOCATION_SERVICE) as LocationManager
-        startInForeground()
+        try {
+            startInForeground()
+        } catch (e: Exception) {
+            lastError = "Vordergrund-Dienst: ${e.javaClass.simpleName}: ${e.message}"
+            Log.e(TAG, "startForeground fehlgeschlagen", e)
+            stopSelf()
+            return
+        }
         running = true
         screenOn = (getSystemService(POWER_SERVICE) as PowerManager).isInteractive
         registerReceiver(screenReceiver, IntentFilter().apply {
@@ -212,7 +233,7 @@ class ForwardService : Service() {
         )
         val n: Notification = Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentTitle("Karoo Fused GPS")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText("GPS wird an \"fused\" weitergeleitet")
             .setContentIntent(open)
             .setOngoing(true)
