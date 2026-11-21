@@ -15,8 +15,8 @@ android {
         versionName = "1.1"
     }
 
-    // Fester SchlÃ¼ssel im Repository, damit sich jede neue Version Ã¼ber die alte
-    // installieren lÃ¤sst (die App ist nur fÃ¼r den eigenen Karoo gedacht).
+    // Fester Schlüssel im Repository, damit sich jede neue Version über die alte
+    // installieren lässt (die App ist nur für den eigenen Karoo gedacht).
     signingConfigs {
         create("karoo") {
             storeFile = rootProject.file("keystore/karoo-fused-gps.jks")
