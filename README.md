@@ -33,6 +33,7 @@ installieren lassen.
 adb install -r apk/karoo-fused-gps.apk
 adb shell pm grant ch.dansoft.karoofusedgps android.permission.ACCESS_FINE_LOCATION
 adb shell pm grant ch.dansoft.karoofusedgps android.permission.ACCESS_COARSE_LOCATION
+adb shell pm grant ch.dansoft.karoofusedgps android.permission.ACCESS_BACKGROUND_LOCATION
 adb shell appops set ch.dansoft.karoofusedgps android:mock_location allow
 adb shell am start -n ch.dansoft.karoofusedgps/.MainActivity
 ```
