@@ -6,8 +6,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.location.Criteria
@@ -18,6 +20,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 
 /**
@@ -30,6 +33,7 @@ import android.util.Log
  *
  * Er fragt das GPS selbst jede Sekunde an. Passives Mithören reicht nicht: Ist die Karoo-App
  * nicht im Vordergrund (z. B. Trailforks offen), fragt das Karoo-System GPS nur alle 30 min an.
+ * Bei ausgeschaltetem Display pausiert die GPS-Anfrage.
  */
 class ForwardService : Service() {
 
@@ -45,6 +49,7 @@ class ForwardService : Service() {
 
         @Volatile var running = false
         @Volatile var providerReady = false
+        @Volatile var gpsActive = false
         @Volatile var forwarded = 0L
         @Volatile var lastFixTime = 0L
         @Volatile var lastError: String? = null
@@ -65,14 +70,35 @@ class ForwardService : Service() {
 
     private lateinit var lm: LocationManager
     private val handler = Handler(Looper.getMainLooper())
-    private var listening = false
+    private var listening: Boolean
+        get() = gpsActive
+        set(v) { gpsActive = v }
 
     private val listener = LocationListener { loc -> onLocation(loc) }
+
+    // Display aus: GPS-Anfrage abmelden (spart Strom; die Karoo-App fragt für Aufzeichnungen
+    // selbst an). Display an: sofort wieder anmelden. Der Fused-Ersatz bleibt eingerichtet.
+    @Volatile private var screenOn = true
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    screenOn = false
+                    stopGps()
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    screenOn = true
+                    handler.removeCallbacks(retry)
+                    handler.post(retry)
+                }
+            }
+        }
+    }
 
     private val retry = object : Runnable {
         override fun run() {
             setup()
-            if (!providerReady || !listening) handler.postDelayed(this, RETRY_MS)
+            if (!providerReady || (!listening && screenOn)) handler.postDelayed(this, RETRY_MS)
         }
     }
 
@@ -83,12 +109,24 @@ class ForwardService : Service() {
         lm = getSystemService(LOCATION_SERVICE) as LocationManager
         startInForeground()
         running = true
+        screenOn = (getSystemService(POWER_SERVICE) as PowerManager).isInteractive
+        registerReceiver(screenReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        })
         handler.post(retry)
+    }
+
+    private fun stopGps() {
+        handler.removeCallbacks(retry)
+        if (listening) lm.removeUpdates(listener)
+        listening = false
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
+        try { unregisterReceiver(screenReceiver) } catch (_: Exception) { }
         handler.removeCallbacksAndMessages(null)
         if (listening) lm.removeUpdates(listener)
         listening = false
@@ -103,7 +141,7 @@ class ForwardService : Service() {
             return
         }
         if (!providerReady) addProvider()
-        if (!listening) {
+        if (!listening && screenOn) {
             try {
                 lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, GPS_INTERVAL_MS, 0f, listener, Looper.getMainLooper())
                 listening = true
@@ -112,7 +150,7 @@ class ForwardService : Service() {
                 Log.w(TAG, "requestLocationUpdates", e)
             }
         }
-        if (providerReady && listening) lastError = null
+        if (providerReady && (listening || !screenOn)) lastError = null
     }
 
     @Suppress("DEPRECATION")

@@ -81,6 +81,7 @@ class MainActivity : Activity() {
         sb.append(if (ForwardService.providerReady) "Fused-Ersatz aktiv\n" else "Fused-Ersatz nicht aktiv\n")
         sb.append("Weitergeleitet: ${ForwardService.forwarded} Positionen\n")
         val last = ForwardService.lastFixTime
+        if (ForwardService.gpsActive) sb.append("GPS-Anfrage aktiv\n") else sb.append("GPS-Anfrage pausiert\n")
         if (last > 0) {
             val s = (System.currentTimeMillis() - last) / 1000
             sb.append("Letzte Position vor $s s\n")
