@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
@@ -11,12 +11,12 @@ android {
         applicationId = "ch.dansoft.karoofusedgps"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
-    // Fester Schlüssel im Repository, damit sich jede neue Version über die alte
-    // installieren lässt (die App ist nur für den eigenen Karoo gedacht).
+    // Fester SchlÃ¼ssel im Repository, damit sich jede neue Version Ã¼ber die alte
+    // installieren lÃ¤sst (die App ist nur fÃ¼r den eigenen Karoo gedacht).
     signingConfigs {
         create("karoo") {
             storeFile = rootProject.file("keystore/karoo-fused-gps.jks")

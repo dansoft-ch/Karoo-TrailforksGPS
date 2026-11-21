@@ -28,8 +28,8 @@ import android.util.Log
  * Dieser Dienst ersetzt "fused" durch einen Test-Provider und speist dort jede echte
  * GPS-Position ein. Der GPS-Provider selbst bleibt unangetastet (Karoo-App, Locus).
  *
- * Er hört passiv mit: Positionen entstehen nur, wenn das Karoo-System ohnehin GPS anfragt,
- * die App schaltet das GPS also nicht selbst ein und kostet kaum Strom.
+ * Er fragt das GPS selbst jede Sekunde an. Passives Mithören reicht nicht: Ist die Karoo-App
+ * nicht im Vordergrund (z. B. Trailforks offen), fragt das Karoo-System GPS nur alle 30 min an.
  */
 class ForwardService : Service() {
 
@@ -41,6 +41,7 @@ class ForwardService : Service() {
         private const val PREFS = "settings"
         private const val KEY_ENABLED = "enabled"
         private const val RETRY_MS = 10_000L
+        private const val GPS_INTERVAL_MS = 1_000L
 
         @Volatile var running = false
         @Volatile var providerReady = false
@@ -104,10 +105,10 @@ class ForwardService : Service() {
         if (!providerReady) addProvider()
         if (!listening) {
             try {
-                lm.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 0L, 0f, listener, Looper.getMainLooper())
+                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, GPS_INTERVAL_MS, 0f, listener, Looper.getMainLooper())
                 listening = true
             } catch (e: Exception) {
-                lastError = "Passiver Empfang: ${e.message}"
+                lastError = "GPS-Empfang: ${e.message}"
                 Log.w(TAG, "requestLocationUpdates", e)
             }
         }
@@ -144,7 +145,7 @@ class ForwardService : Service() {
     }
 
     private fun onLocation(loc: Location) {
-        // Nur echte GPS-Positionen; die eigenen "fused"-Positionen kommen passiv auch zurück
+        // Nur echte GPS-Positionen
         if (loc.provider != LocationManager.GPS_PROVIDER || loc.isFromMockProvider) return
         if (!providerReady) return
         try {

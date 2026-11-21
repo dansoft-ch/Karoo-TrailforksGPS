@@ -14,8 +14,9 @@ nur kurz nach dem Einschalten des Displays. Getestet am 21.11.2026: Mit einem si
 ## Lösung
 
 Die App ersetzt „fused“ durch einen Test-Provider (Mock-Location) und speist jede echte GPS-Position
-1:1 dort ein (Genauigkeit, Höhe, Geschwindigkeit, Richtung). Sie hört passiv mit und schaltet das GPS
-nicht selbst ein. Den GPS-Provider fasst sie nicht an: Die Karoo-App und Locus Map holen ihr GPS
+1:1 dort ein (Genauigkeit, Höhe, Geschwindigkeit, Richtung). Sie fragt das GPS selbst jede Sekunde an,
+denn ohne Karoo-App im Vordergrund fragt das Karoo-System GPS nur alle 30 Minuten an. Den GPS-Provider
+ersetzt sie nicht: Die Karoo-App und Locus Map holen ihr GPS
 direkt und sind nicht betroffen. Die Weiterleitung startet nach dem Einschalten des Karoo automatisch.
 
 ## Bauen
