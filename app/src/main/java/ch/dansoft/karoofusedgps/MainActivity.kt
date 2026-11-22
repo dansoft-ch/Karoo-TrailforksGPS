@@ -3,16 +3,20 @@ package ch.dansoft.karoofusedgps
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
+import android.widget.CompoundButton
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 
-/** Ein Schalter "Weiterleitung" und eine Statusanzeige. */
+/** Drei Schalter (Weiterleitung, Autostart, Display aus) und eine Statusanzeige. */
 class MainActivity : Activity() {
 
     private val handler = Handler(Looper.getMainLooper())
@@ -33,25 +37,46 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
         }
-        val title = TextView(this).apply {
+        root.addView(TextView(this).apply {
             text = getString(R.string.app_name)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-        }
-        val switch = Switch(this).apply {
-            text = "Weiterleitung GPS → fused"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-            isChecked = ForwardService.isEnabled(this@MainActivity)
-            setPadding(0, pad, 0, pad)
-            setOnCheckedChangeListener { _, on -> ForwardService.setEnabled(this@MainActivity, on) }
-        }
+            setTextColor(Color.BLACK)
+        })
+
+        root.addView(karooSwitch(
+            "Weiterleitung GPS → fused",
+            ForwardService.isEnabled(this)
+        ) { on -> ForwardService.setEnabled(this, on) })
+
+        root.addView(karooSwitch(
+            "Autostart beim Einschalten",
+            ForwardService.isAutostart(this)
+        ) { on -> ForwardService.setAutostart(this, on) })
+
+        root.addView(karooSwitch(
+            "Auch bei Display aus weiterleiten",
+            ForwardService.isForwardWhenScreenOff(this),
+            "Damit Aufzeichnungen in Trailforks nicht unterbrechen. Aus spart etwas Strom bei dunklem Display."
+        ) { on -> ForwardService.setForwardWhenScreenOff(this, on) })
+
         status = TextView(this).apply {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTextColor(Color.DKGRAY)
             gravity = Gravity.START
+            setPadding(0, pad, 0, 0)
         }
-        root.addView(title)
-        root.addView(switch)
         root.addView(status)
-        setContentView(root)
+        val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "" }
+        root.addView(TextView(this).apply {
+            text = "Version $version · von dansoft-ch\ngithub.com/dansoft-ch/Karoo-TrailforksGPS"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setTextColor(Color.GRAY)
+            setPadding(0, dp(24), 0, 0)
+        })
+        setContentView(ScrollView(this).apply {
+            setBackgroundColor(Color.WHITE)
+            addView(root)
+        })
 
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(
@@ -59,6 +84,34 @@ class MainActivity : Activity() {
             )
         }
         if (ForwardService.isEnabled(this) && !ForwardService.running) ForwardService.start(this)
+    }
+
+    /**
+     * Schalter im Stil der Karoo-Einstellungen: eingeschaltet schwarzer Knopf auf grauer Bahn,
+     * ausgeschaltet hellgrauer Knopf auf hellgrauer Bahn. Feste Farben, weil das Karoo-Theme
+     * keine Akzentfarbe setzt und "ein" sonst nicht erkennbar ist.
+     */
+    private fun karooSwitch(label: String, checked: Boolean, hint: String? = null, onChange: (Boolean) -> Unit): LinearLayout {
+        val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
+        val sw = Switch(this).apply {
+            text = label
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            setTextColor(Color.BLACK)
+            isChecked = checked
+            thumbTintList = ColorStateList(states, intArrayOf(Color.BLACK, Color.parseColor("#EEEEEE")))
+            trackTintList = ColorStateList(states, intArrayOf(Color.parseColor("#9E9E9E"), Color.parseColor("#BDBDBD")))
+            setOnCheckedChangeListener { _: CompoundButton, on: Boolean -> onChange(on) }
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(12), 0, dp(12))
+            addView(sw)
+            if (hint != null) addView(TextView(this@MainActivity).apply {
+                text = hint
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setTextColor(Color.GRAY)
+            })
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -80,8 +133,8 @@ class MainActivity : Activity() {
         val sb = StringBuilder()
         sb.append(if (ForwardService.providerReady) "Fused-Ersatz aktiv\n" else "Fused-Ersatz nicht aktiv\n")
         sb.append("Weitergeleitet: ${ForwardService.forwarded} Positionen\n")
-        val last = ForwardService.lastFixTime
         if (ForwardService.gpsActive) sb.append("GPS-Anfrage aktiv\n") else sb.append("GPS-Anfrage pausiert\n")
+        val last = ForwardService.lastFixTime
         if (last > 0) {
             val s = (System.currentTimeMillis() - last) / 1000
             sb.append("Letzte Position vor $s s\n")

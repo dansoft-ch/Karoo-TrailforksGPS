@@ -8,7 +8,7 @@ import android.os.Looper
 import android.util.Log
 
 /**
- * Startet die Weiterleitung nach dem Einschalten des Karoo und nach einem App-Update.
+ * Startet die Weiterleitung nach dem Einschalten des Karoo (nur mit Autostart) und nach einem App-Update.
  *
  * Zwei Wege: LOCKED_BOOT_COMPLETED (früh, Receiver und Dienst sind directBootAware) und
  * BOOT_COMPLETED. Schlägt der Start fehl, wird er noch zweimal im Abstand von 5 s versucht
@@ -25,6 +25,11 @@ class BootReceiver : BroadcastReceiver() {
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 if (!ForwardService.isEnabled(context)) {
                     Log.i(ForwardService.TAG, "Weiterleitung ausgeschaltet, kein Start")
+                    return
+                }
+                // Nach einem App-Update immer weiterlaufen; beim Einschalten nur mit Autostart
+                if (action != Intent.ACTION_MY_PACKAGE_REPLACED && !ForwardService.isAutostart(context)) {
+                    Log.i(ForwardService.TAG, "Autostart ausgeschaltet, kein Start")
                     return
                 }
                 if (ForwardService.running) {

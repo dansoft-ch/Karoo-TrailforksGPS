@@ -33,7 +33,7 @@ import android.util.Log
  *
  * Er fragt das GPS selbst jede Sekunde an. Passives Mithören reicht nicht: Ist die Karoo-App
  * nicht im Vordergrund (z. B. Trailforks offen), fragt das Karoo-System GPS nur alle 30 min an.
- * Bei ausgeschaltetem Display pausiert die GPS-Anfrage.
+ * Auf Wunsch (Schalter in der App) pausiert die GPS-Anfrage bei ausgeschaltetem Display.
  */
 class ForwardService : Service() {
 
@@ -44,6 +44,9 @@ class ForwardService : Service() {
         private const val NOTIF_ID = 1
         private const val PREFS = "settings"
         private const val KEY_ENABLED = "enabled"
+        private const val KEY_AUTOSTART = "autostart"
+        private const val KEY_SCREEN_OFF = "forward_when_screen_off"
+        private const val ACTION_REFRESH = "ch.dansoft.karoofusedgps.REFRESH"
         private const val RETRY_MS = 10_000L
         private const val GPS_INTERVAL_MS = 1_000L
 
@@ -63,6 +66,21 @@ class ForwardService : Service() {
         fun setEnabled(ctx: Context, enabled: Boolean) {
             prefs(ctx).edit().putBoolean(KEY_ENABLED, enabled).apply()
             if (enabled) start(ctx) else ctx.stopService(Intent(ctx, ForwardService::class.java))
+        }
+
+        /** Autostart beim Einschalten des Karoo (Grundeinstellung: ein). */
+        fun isAutostart(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_AUTOSTART, true)
+
+        fun setAutostart(ctx: Context, on: Boolean) {
+            prefs(ctx).edit().putBoolean(KEY_AUTOSTART, on).apply()
+        }
+
+        /** Auch bei ausgeschaltetem Display weiterleiten, damit Aufzeichnungen in Trailforks nicht unterbrechen (Grundeinstellung: ein). */
+        fun isForwardWhenScreenOff(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_SCREEN_OFF, true)
+
+        fun setForwardWhenScreenOff(ctx: Context, on: Boolean) {
+            prefs(ctx).edit().putBoolean(KEY_SCREEN_OFF, on).apply()
+            if (running) ctx.startService(Intent(ctx, ForwardService::class.java).setAction(ACTION_REFRESH))
         }
 
         fun start(ctx: Context) {
@@ -90,14 +108,18 @@ class ForwardService : Service() {
     private val listener = LocationListener { loc -> onLocation(loc) }
 
     // Display aus: GPS-Anfrage abmelden (spart Strom; die Karoo-App fragt für Aufzeichnungen
-    // selbst an). Display an: sofort wieder anmelden. Der Fused-Ersatz bleibt eingerichtet.
+    // selbst an), ausser "auch bei Display aus weiterleiten" ist eingeschaltet.
+    // Display an: sofort wieder anmelden. Der Fused-Ersatz bleibt eingerichtet.
     @Volatile private var screenOn = true
+
+    private fun gpsWanted(): Boolean = screenOn || isForwardWhenScreenOff(this)
+
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF -> {
                     screenOn = false
-                    stopGps()
+                    if (!gpsWanted()) stopGps()
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     screenOn = true
@@ -111,7 +133,7 @@ class ForwardService : Service() {
     private val retry = object : Runnable {
         override fun run() {
             setup()
-            if (!providerReady || (!listening && screenOn)) handler.postDelayed(this, RETRY_MS)
+            if (!providerReady || (!listening && gpsWanted())) handler.postDelayed(this, RETRY_MS)
         }
     }
 
@@ -144,7 +166,18 @@ class ForwardService : Service() {
         listening = false
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_REFRESH && running) {
+            // Einstellung "auch bei Display aus" geändert
+            if (gpsWanted()) {
+                handler.removeCallbacks(retry)
+                handler.post(retry)
+            } else {
+                stopGps()
+            }
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         try { unregisterReceiver(screenReceiver) } catch (_: Exception) { }
@@ -162,7 +195,7 @@ class ForwardService : Service() {
             return
         }
         if (!providerReady) addProvider()
-        if (!listening && screenOn) {
+        if (!listening && gpsWanted()) {
             try {
                 lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, GPS_INTERVAL_MS, 0f, listener, Looper.getMainLooper())
                 listening = true
@@ -171,7 +204,7 @@ class ForwardService : Service() {
                 Log.w(TAG, "requestLocationUpdates", e)
             }
         }
-        if (providerReady && (listening || !screenOn)) lastError = null
+        if (providerReady && (listening || !gpsWanted())) lastError = null
     }
 
     @Suppress("DEPRECATION")

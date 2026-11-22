@@ -61,13 +61,19 @@ TrailforksFusedGPS replaces the broken `fused` provider with Android's own mecha
    altitude, speed, bearing and timestamps.
 3. **Only `fused` is replaced.** The `gps` provider is untouched, so the Karoo ride app, ride
    recording and Locus Map behave exactly as before.
-4. **Display off:** the GPS request pauses to save battery. A running ride is still recorded,
-   because the Karoo requests GPS itself. When the display turns on, forwarding resumes immediately.
-5. **Autostart:** it starts automatically at boot (`LOCKED_BOOT_COMPLETED` and `BOOT_COMPLETED`,
-   with up to three attempts) and after an app update. It runs as a small foreground service with
-   a silent notification.
-6. **Off switch:** the switch in the app removes the test provider again, which restores the
-   original state.
+4. **Display off:** by default forwarding continues while the display is off, so a ride recorded
+   *in Trailforks* has no gaps. To save a little battery, turn off **"Auch bei Display aus
+   weiterleiten"** (forward when display is off). The GPS request then pauses while the display is
+   dark and resumes as soon as it turns on. A ride recorded by the Karoo ride app is unaffected either
+   way, because the Karoo requests GPS itself.
+5. **Autostart:** by default it starts automatically at boot (`LOCKED_BOOT_COMPLETED` and
+   `BOOT_COMPLETED`, with up to three attempts). The switch **"Autostart beim Einschalten"** turns
+   this off. After an app update it always restarts. It runs as a small foreground service with a
+   silent notification.
+6. **Off switch:** the switch **"Weiterleitung GPS → fused"** removes the test provider again, which
+   restores the original state.
+
+The switches use the Karoo style: black knob when on, light grey when off.
 
 The app screen shows whether the fused replacement is active, whether GPS is being requested, how
 many fixes have been forwarded and the age of the last fix. Each step is logged:
@@ -76,8 +82,19 @@ many fixes have been forwarded and the age of the last fix. Each step is logged:
 adb logcat -s KarooFusedGPS
 ```
 
-Tested on 21.11.2026 on a Karoo 3: after a reboot the service starts on its own, and Trailforks
-follows the position continuously.
+## Tested with
+
+| Component | Version |
+|---|---|
+| Hammerhead Karoo 3 firmware | 1.665.2548.20 |
+| Android | 12 (API 32) |
+| Trailforks (sideloaded) | 2024.10.1 (versionCode 19168404) |
+| TrailforksFusedGPS | 1.4 (tag `v1.4`), tested 21.11.2026 |
+
+Result: after a reboot the service starts on its own, and Trailforks follows the position
+continuously. The Karoo ride app and Locus Map are unaffected. Other Trailforks or Karoo versions
+may behave differently. Check with `adb shell dumpsys location` whether Trailforks registers on the
+`fused` provider.
 
 ## Installation (adb)
 
